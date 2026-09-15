@@ -1,0 +1,8 @@
+name: forgepulse_warehouse
+version: '1.0'
+config-version: 2
+profile: forgepulse
+model-paths: [models]
+models:
+  forgepulse_warehouse:
+    +materialized: view
