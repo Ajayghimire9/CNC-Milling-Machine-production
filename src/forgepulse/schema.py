@@ -20,9 +20,12 @@ class MachineRecord(BaseModel):
 
 class PredictionResponse(BaseModel):
     processing_time: float
+    processing_time_std: float
     average_power_consumption: float
+    average_power_consumption_std: float
     anomaly_score: float
     anomaly: bool
+    risk_level: str
     model_version: str
 
 
