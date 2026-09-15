@@ -13,7 +13,7 @@ from .features import TARGETS, build_features
 
 
 class ManufacturingModels:
-    """Two supervised regressors plus an unsupervised anomaly detector."""
+    """Supervised performance models plus an unsupervised anomaly detector."""
 
     def __init__(self) -> None:
         base = ExtraTreesRegressor(
@@ -28,7 +28,7 @@ class ManufacturingModels:
             contamination=0.05,
             random_state=42,
         )
-        self.version = "2.0.0"
+        self.version = "3.0.0"
 
     def fit(self, frame: pd.DataFrame) -> "ManufacturingModels":
         x = build_features(frame)
@@ -38,11 +38,30 @@ class ManufacturingModels:
         return self
 
     def predict(self, frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+        prediction, uncertainty, score, flag = self.predict_with_uncertainty(frame)
+        return prediction, score, flag
+
+    def predict_with_uncertainty(
+        self, frame: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
         x = build_features(frame)
         prediction = pd.DataFrame(self.performance.predict(x), columns=TARGETS, index=x.index)
+        estimators = self.performance.named_steps["model"].estimators_
+        tree_predictions = []
+        for estimator in estimators:
+            tree_predictions.append(
+                pd.DataFrame(
+                    [tree.predict(x) for tree in estimator.estimators_],
+                    columns=[estimator.estimators_[0].n_features_in_],
+                )
+            )
+        uncertainty = pd.DataFrame(index=x.index)
+        for target, estimator in zip(TARGETS, estimators):
+            values = [tree.predict(x) for tree in estimator.estimators_]
+            uncertainty[f"{target}_std"] = pd.DataFrame(values).std(axis=0).to_numpy()
         score = pd.Series(self.anomaly.decision_function(x), index=x.index, name="anomaly_score")
         flag = pd.Series(self.anomaly.predict(x) == -1, index=x.index, name="anomaly")
-        return prediction, score, flag
+        return prediction, uncertainty, score, flag
 
     def save(self, path: str | Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
