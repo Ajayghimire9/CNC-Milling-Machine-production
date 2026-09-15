@@ -1,16 +1,41 @@
 services:
   forgepulse:
     build: .
-    ports:
-      - "8000:8000"
+    ports: ["8000:8000"]
+    environment:
+      FORGEPULSE_MODEL: /app/artifacts/forgepulse.joblib
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     volumes:
       - ./artifacts:/app/artifacts
+    depends_on: [kafka]
+
+  kafka:
+    image: bitnami/kafka:3.8
+    environment:
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      ALLOW_PLAINTEXT_LISTENER: yes
+    ports: ["9092:9092"]
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.17.2
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root /mlruns
+    ports: ["5000:5000"]
+    volumes:
+      - mlflow-data:/mlruns
+      - mlflow-db:/app
 
   prometheus:
     image: prom/prometheus:v3.5.0
-    ports:
-      - "9090:9090"
+    ports: ["9090:9090"]
     volumes:
-      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    depends_on:
-      - forgepulse
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on: [forgepulse]
+
+volumes:
+  mlflow-data:
+  mlflow-db:
