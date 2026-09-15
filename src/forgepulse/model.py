@@ -23,22 +23,17 @@ class ManufacturingModels:
             n_jobs=-1,
         )
         self.performance = Pipeline([("scale", StandardScaler()), ("model", MultiOutputRegressor(base))])
-        self.anomaly = IsolationForest(
-            n_estimators=200,
-            contamination=0.05,
-            random_state=42,
-        )
+        self.anomaly = IsolationForest(n_estimators=200, contamination=0.05, random_state=42)
         self.version = "3.0.0"
 
     def fit(self, frame: pd.DataFrame) -> "ManufacturingModels":
         x = build_features(frame)
-        y = frame[TARGETS]
-        self.performance.fit(x, y)
+        self.performance.fit(x, frame[TARGETS])
         self.anomaly.fit(x)
         return self
 
     def predict(self, frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
-        prediction, uncertainty, score, flag = self.predict_with_uncertainty(frame)
+        prediction, _, score, flag = self.predict_with_uncertainty(frame)
         return prediction, score, flag
 
     def predict_with_uncertainty(
@@ -46,26 +41,19 @@ class ManufacturingModels:
     ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
         x = build_features(frame)
         prediction = pd.DataFrame(self.performance.predict(x), columns=TARGETS, index=x.index)
-        estimators = self.performance.named_steps["model"].estimators_
-        tree_predictions = []
-        for estimator in estimators:
-            tree_predictions.append(
-                pd.DataFrame(
-                    [tree.predict(x) for tree in estimator.estimators_],
-                    columns=[estimator.estimators_[0].n_features_in_],
-                )
-            )
         uncertainty = pd.DataFrame(index=x.index)
-        for target, estimator in zip(TARGETS, estimators):
-            values = [tree.predict(x) for tree in estimator.estimators_]
+        regressors = self.performance.named_steps["model"].estimators_
+        for target, regressor in zip(TARGETS, regressors):
+            values = [tree.predict(x) for tree in regressor.estimators_]
             uncertainty[f"{target}_std"] = pd.DataFrame(values).std(axis=0).to_numpy()
         score = pd.Series(self.anomaly.decision_function(x), index=x.index, name="anomaly_score")
         flag = pd.Series(self.anomaly.predict(x) == -1, index=x.index, name="anomaly")
         return prediction, uncertainty, score, flag
 
     def save(self, path: str | Path) -> None:
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(self, path)
+        destination = Path(path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(self, destination)
 
     @staticmethod
     def load(path: str | Path) -> "ManufacturingModels":
