@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
+import mlflow
+import mlflow.sklearn
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.model_selection import train_test_split
@@ -26,11 +29,19 @@ def train(data_path: Path = DATA_PATH, model_path: Path = MODEL_PATH) -> dict[st
         metrics[f"{target}_mae"] = float(mean_absolute_error(test_df[target], predictions[target]))
         metrics[f"{target}_rmse"] = float(mean_squared_error(test_df[target], predictions[target]) ** 0.5)
 
+    model_path.parent.mkdir(parents=True, exist_ok=True)
     models.save(model_path)
-    model_path.with_suffix(".json").write_text(
-        json.dumps({"model_version": models.version, "metrics": metrics}, indent=2),
-        encoding="utf-8",
-    )
+    manifest = {"model_version": models.version, "metrics": metrics, "rows": len(frame)}
+    model_path.with_suffix(".json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns"))
+    with mlflow.start_run(run_name="forgepulse-extra-trees"):
+        mlflow.log_params({"model": "ExtraTrees", "n_estimators": 300, "test_size": 0.2, "seed": 42})
+        mlflow.log_metrics(metrics)
+        mlflow.log_artifact(str(model_path))
+        mlflow.log_artifact(str(model_path.with_suffix(".json")))
+        mlflow.set_tag("model_version", models.version)
+        mlflow.sklearn.log_model(models.performance, "performance_model")
     return metrics
 
 
