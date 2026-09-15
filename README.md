@@ -1,216 +1,180 @@
-# ForgePulse — CNC Manufacturing Intelligence
+# ForgePulse — Industrial ML & MLOps Platform for CNC Manufacturing
 
-ForgePulse is a production-oriented machine-learning platform for CNC manufacturing data.
+ForgePulse is a production-oriented industrial ML system for CNC manufacturing intelligence. It turns job-level manufacturing records into **performance forecasts, uncertainty estimates, anomaly signals, monitored API predictions, and reproducible ML lifecycle artifacts**.
 
-The original repository started as an exploratory analysis of CNC production records. I rebuilt it around a more realistic engineering problem: **how can a manufacturing team estimate job performance, identify unusual machine workloads, and expose those predictions through a service that can be monitored and tested?**
-
-The result is a small but complete ML system rather than a notebook with a model attached to it.
-
-## What it does
-
-ForgePulse currently provides three capabilities:
-
-- **Production forecasting** — estimates processing time and average power consumption from job-level manufacturing characteristics.
-- **Anomaly detection** — flags unusual combinations of manufacturing features using an unsupervised Isolation Forest model.
-- **Model serving** — exposes predictions through a typed FastAPI service with health checks and Prometheus-compatible metrics.
-
-The training pipeline also evaluates the model on a held-out test set and stores the trained artifact together with a machine-readable metrics manifest.
+The project intentionally goes beyond a notebook: data validation, feature engineering, model training, experiment tracking, artifact integrity, streaming integration, batch scoring, observability, orchestration, containerization, Kubernetes deployment, and warehouse modelling are separated into explicit engineering layers.
 
 ## Architecture
 
 ```text
-                 CNC production records
-                          │
-                          ▼
-                 Data validation layer
-                          │
-                          ▼
-              Feature engineering pipeline
-             ┌────────────┴────────────┐
-             ▼                         ▼
-      Performance model          Anomaly detector
-      ExtraTrees regression       Isolation Forest
-             │                         │
-             └────────────┬────────────┘
-                          ▼
-                   Model artifact
-                          │
-                          ▼
-                    FastAPI service
-                     │           │
-                     ▼           ▼
-                Predictions   /metrics
-                                  │
-                                  ▼
-                         Prometheus / ops
+ CNC machine / ERP / MES telemetry
+              │
+              ▼
+       Kafka telemetry bus
+              │
+              ▼
+    Validation + feature layer
+              │
+       ┌──────┴───────┐
+       ▼              ▼
+ ExtraTrees         Isolation
+ regression         Forest
+       │              │
+       └──────┬───────┘
+              ▼
+   Evaluation + uncertainty
+              │
+              ▼
+      MLflow experiment log
+              │
+              ▼
+   Versioned model + SHA-256
+              │
+       ┌──────┴───────┐
+       ▼              ▼
+ FastAPI online     Batch Parquet
+ inference          inference
+       │              │
+       └──────┬───────┘
+              ▼
+ Prometheus → alerts → operations
+              │
+              ▼
+     Kubernetes / HPA
+
+ Airflow → validation → train → evaluate
+ dbt → analytical warehouse models
+ DVC → reproducible pipeline stages
+ Terraform → infrastructure boundary
+ GitHub Actions → lint → tests → image build
 ```
 
-This separation is intentional. Data validation, feature construction, training, inference, and monitoring are independent concerns, which makes the system easier to test and replace.
+## Implemented engineering capabilities
 
-## Why these models?
+### ML engineering
+- Multi-target ExtraTrees regression for processing time and power consumption.
+- Isolation Forest for unsupervised workload anomaly detection.
+- Ensemble-based prediction uncertainty using tree dispersion.
+- Deterministic train/test split and fixed model seeds.
+- Reusable evaluation module with MAE, RMSE, and R².
+- Model artifact manifest with SHA-256 integrity metadata.
 
-The dataset is relatively small and tabular. A large neural network would add complexity without solving a real problem here.
+### MLOps
+- MLflow experiment tracking for parameters, metrics, artifacts, and model packaging.
+- DVC pipeline definition for reproducible training dependencies and outputs.
+- Explicit model lifecycle vocabulary: candidate → validated → production.
+- Externalized configuration in `params.yaml`.
+- Batch inference to Parquet for offline scoring.
 
-ForgePulse therefore uses **ExtraTrees regression** for the production targets. It handles nonlinear relationships and feature interactions well on structured data while remaining inexpensive to train. An **Isolation Forest** is used separately because anomaly detection is a different problem from supervised prediction: unusual machine/job combinations do not require a labelled failure dataset.
+### Data engineering
+- Kafka producer/consumer adapter for CNC telemetry events.
+- dbt staging and fact models with schema tests.
+- Airflow DAG for validation → training → evaluation orchestration.
+- Parquet as an analytics-friendly batch format.
 
-That distinction is important in manufacturing systems, where labelled failure events are often much rarer than normal production records.
+### Production serving
+- FastAPI typed request/response contracts.
+- `/health` and `/ready` probes for container orchestration.
+- Prometheus request counters and latency histograms.
+- Risk-level routing based on anomaly score.
+- Docker multi-stage build and non-root runtime user.
+- Kubernetes deployment with resource requests/limits and HPA.
 
-## Engineering features
-
-- Typed request and response contracts with Pydantic
-- Explicit input validation and finite-value handling
-- Reusable feature engineering instead of notebook-only transformations
-- Multi-target regression for processing time and power consumption
-- Unsupervised anomaly detection
-- Reproducible train/test split and fixed model seeds
-- Versioned model artifact format
-- JSON evaluation manifest
-- Population Stability Index utility for feature drift checks
-- FastAPI inference endpoint
-- Prometheus request metrics
-- Dockerized serving
-- Ruff + Pytest in GitHub Actions
-- `src/` package layout with installable Python project
+### Platform / DevOps
+- Docker Compose development stack with Kafka, MLflow, Prometheus, and API.
+- Terraform infrastructure boundary with externalized environment configuration.
+- GitHub Actions quality gate: Ruff, Pytest, and container build.
+- No credentials or cloud-specific secrets are committed to the repository.
 
 ## Project structure
 
 ```text
-.
-├── CNC_Milling_Machine/
-│   └── Datasets/
-│       └── CNC-Milling Machine_Production data.xlsx
-├── src/
-│   └── forgepulse/
-│       ├── api.py          # HTTP inference service
-│       ├── drift.py        # feature drift utilities
-│       ├── features.py     # validation + feature engineering
-│       ├── model.py        # predictive + anomaly models
-│       ├── schema.py       # API/data contracts
-│       └── train.py        # training + evaluation entry point
-├── tests/
-│   ├── test_drift.py
-│   └── test_features.py
-├── Dockerfile
-├── pyproject.toml
-└── .github/workflows/ci.yml
+src/forgepulse/
+├── api.py           # online inference + health/metrics
+├── batch.py         # offline CSV → Parquet scoring
+├── drift.py         # population stability utilities
+├── evaluate.py      # evaluation CLI
+├── evaluation.py    # reusable metrics/reporting
+├── features.py      # validation + feature engineering
+├── model.py         # regression + anomaly models
+├── registry.py      # artifact integrity/lifecycle metadata
+├── schema.py        # Pydantic contracts
+├── streaming.py     # Kafka telemetry adapter
+├── train.py         # training + MLflow tracking
+└── validate.py      # data validation CLI
+
+airflow/dags/        # orchestration
+models/              # dbt warehouse models
+infra/terraform/     # IaC boundary
+k8s/                 # Kubernetes deployment + HPA
+monitoring/          # Prometheus alert rules
+deploy/              # Prometheus configuration
+tests/               # automated tests
 ```
 
-## Run it locally
-
-Python 3.11+ is recommended.
+## Local development
 
 ```bash
-git clone https://github.com/Ajayghimire9/CNC-Milling-Machine-production.git
-cd CNC-Milling-Machine-production
-
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-```
 
-Run quality checks:
-
-```bash
 ruff check src tests
 pytest -q
 ```
 
-Train the models:
+Train and track an experiment locally:
 
 ```bash
 python -m forgepulse.train
+mlflow ui --backend-store-uri ./mlruns
 ```
 
-The command creates:
-
-```text
-artifacts/
-├── forgepulse.joblib
-└── forgepulse.json
-```
-
-The JSON file contains the model version and held-out evaluation metrics.
-
-## Serve predictions
-
-After training:
+Serve the trained artifact:
 
 ```bash
 uvicorn forgepulse.api:app --host 0.0.0.0 --port 8000
 ```
 
-Health check:
-
-```bash
-curl http://localhost:8000/health
-```
-
-Example prediction:
-
-```bash
-curl -X POST http://localhost:8000/v1/predict \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "raw_volume": 120.0,
-    "number_of_lines_of_code": 850,
-    "number_tool_changes": 12,
-    "number_of_travels_to_machine_zero_point_in_rapid_traverse": 7,
-    "number_axis_rotations": 45,
-    "weighted_tool_diameter": 4.2,
-    "weighted_cutting_length": 180.0,
-    "weighted_number_of_cutting_edges": 8
-  }'
-```
-
-Metrics are available at:
+Operational endpoints:
 
 ```text
-http://localhost:8000/metrics
+GET  /health
+GET  /ready
+GET  /metrics
+POST /v1/predict
 ```
 
-## Docker
-
-Build and run the API after creating the model artifact locally:
+## Reproducible pipeline
 
 ```bash
-docker build -t forgepulse .
-docker run --rm -p 8000:8000 -v "$PWD/artifacts:/app/artifacts" forgepulse
+python -m forgepulse.validate
+python -m forgepulse.train
+python -m forgepulse.evaluate
 ```
 
-## Data and modelling notes
+Or use the DVC stage definition:
 
-The source dataset contains CNC job-level production characteristics, including geometry-related measures, tool changes, axis rotations, cutting dimensions, processing time, and average power consumption.
+```bash
+dvc repro
+```
 
-The feature layer derives additional operational signals such as:
+For scheduled orchestration, the Airflow DAG is at `airflow/dags/forgepulse_pipeline.py`.
 
-- cutting intensity
-- tool-change density
-- axis-rotation density
-- a simple job-complexity index
+## Local platform stack
 
-The pipeline deliberately keeps these transformations in Python code rather than embedding them in a notebook so that training and serving use the same feature logic.
+```bash
+docker compose up --build
+```
 
-## What I would add for a real factory deployment
+Services include the inference API, Kafka, MLflow, and Prometheus. Production Kubernetes manifests live under `k8s/`.
 
-The repository is intentionally honest about its current boundary. The next engineering layer would be:
+## Important portfolio note
 
-1. Kafka or MQTT ingestion from machine telemetry.
-2. A durable lakehouse layer using object storage and an open table format.
-3. MLflow for experiment tracking and model promotion.
-4. Online feature and prediction monitoring.
-5. Alerting for sustained drift or anomaly-rate changes.
-6. Kubernetes deployment with resource limits and autoscaling.
-7. CI/CD image publishing and environment promotion.
-8. Model comparison against simple production baselines before deployment.
+This repository uses a real CNC production dataset and demonstrates industrial ML engineering patterns. It does **not** claim that the anomaly model is a safety-certified machine protection system. A real factory deployment would require validated telemetry contracts, plant-specific failure labels, historical backtesting, human approval policies, security controls, SLOs, and integration testing with the target MES/SCADA environment.
 
-Those components are not presented as implemented until they actually exist in the repository.
+## Why this project matters for a Data/ML Engineer role
 
-## Portfolio positioning
+ForgePulse demonstrates the complete path from **industrial data → streaming/batch ingestion → validated features → model training → experiment tracking → model integrity → online/batch inference → monitoring → orchestration → container deployment → Kubernetes**.
 
-ForgePulse demonstrates **ML engineering for industrial data** rather than only model training. The interesting part is the path from a raw manufacturing record to a validated feature set, two different modelling objectives, a persisted artifact, an API contract, operational metrics, tests, and CI.
-
-That makes the project useful as a portfolio example for **Machine Learning Engineer, MLOps Engineer, Data Scientist, and Industrial AI** roles.
-
-## License
-
-No license has been added yet. Add one before distributing the repository as an open-source project.
+It is designed to be interviewable: each technology has a concrete responsibility rather than being included only as a keyword.
