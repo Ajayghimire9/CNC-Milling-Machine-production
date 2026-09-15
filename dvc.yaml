@@ -1,0 +1,12 @@
+stages:
+  train:
+    cmd: python -m forgepulse.train --data 'CNC_Milling_Machine/Datasets/CNC-Milling Machine_Production data.xlsx'
+    deps:
+      - CNC_Milling_Machine/Datasets/CNC-Milling Machine_Production data.xlsx
+      - src/forgepulse
+      - params.yaml
+    params:
+      - train
+    outs:
+      - artifacts/forgepulse.joblib
+      - artifacts/forgepulse.json
