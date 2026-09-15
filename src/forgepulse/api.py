@@ -12,7 +12,7 @@ from .model import ManufacturingModels
 from .schema import HealthResponse, MachineRecord, PredictionResponse
 
 MODEL_PATH = Path(os.getenv("FORGEPULSE_MODEL", "artifacts/forgepulse.joblib"))
-PREDICTIONS = Counter("forgepulse_predictions_total", "Prediction requests")
+PREDICTIONS = Counter("forgepulse_predictions_total", "Prediction requests", ["status"])
 LATENCY = Histogram("forgepulse_prediction_latency_seconds", "Prediction latency")
 
 app = FastAPI(title="ForgePulse Industrial ML API", version="3.0.0")
@@ -47,10 +47,11 @@ def ready() -> dict[str, bool]:
 def predict(record: MachineRecord) -> PredictionResponse:
     started = time.perf_counter()
     model = get_models()
-    PREDICTIONS.inc()
     frame = pd.DataFrame([record.model_dump()])
     prediction, uncertainty, score, flag = model.predict_with_uncertainty(frame)
-    risk = "high" if bool(flag.iloc[0]) else "medium" if float(score.iloc[0]) < 0.1 else "low"
+    anomaly = bool(flag.iloc[0])
+    risk = "high" if anomaly else "medium" if float(score.iloc[0]) < 0.1 else "low"
+    PREDICTIONS.labels(status="anomaly" if anomaly else "normal").inc()
     LATENCY.observe(time.perf_counter() - started)
     return PredictionResponse(
         processing_time=float(prediction.iloc[0]["processing_time"]),
@@ -58,7 +59,7 @@ def predict(record: MachineRecord) -> PredictionResponse:
         average_power_consumption=float(prediction.iloc[0]["average_power_consumption"]),
         average_power_consumption_std=float(uncertainty.iloc[0]["average_power_consumption_std"]),
         anomaly_score=float(score.iloc[0]),
-        anomaly=bool(flag.iloc[0]),
+        anomaly=anomaly,
         risk_level=risk,
         model_version=model.version,
     )
