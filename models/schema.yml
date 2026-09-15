@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: forgepulse
+    schema: public
+    tables:
+      - name: machine_predictions
+
+models:
+  - name: stg_machine_predictions
+    columns:
+      - name: model_version
+        tests: [not_null]
+      - name: risk_level
+        tests: [not_null]
+  - name: fct_machine_predictions
+    columns:
+      - name: processing_time
+        tests: [not_null]
+      - name: average_power_consumption
+        tests: [not_null]
