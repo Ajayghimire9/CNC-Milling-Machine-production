@@ -16,7 +16,9 @@ def sha256_file(path: str | Path) -> str:
     return digest.hexdigest()
 
 
-def register_artifact(model_path: str | Path, version: str, stage: Stage = "candidate") -> dict[str, str]:
+def register_artifact(
+    model_path: str | Path, version: str, stage: Stage = "candidate"
+) -> dict[str, str]:
     model = Path(model_path)
     manifest = {
         "model": model.name,

@@ -27,7 +27,9 @@ def train(data_path: Path = DATA_PATH, model_path: Path = MODEL_PATH) -> dict[st
     metrics: dict[str, float] = {}
     for target in TARGETS:
         metrics[f"{target}_mae"] = float(mean_absolute_error(test_df[target], predictions[target]))
-        metrics[f"{target}_rmse"] = float(mean_squared_error(test_df[target], predictions[target]) ** 0.5)
+        metrics[f"{target}_rmse"] = float(
+            mean_squared_error(test_df[target], predictions[target]) ** 0.5
+        )
 
     model_path.parent.mkdir(parents=True, exist_ok=True)
     models.save(model_path)
@@ -36,7 +38,9 @@ def train(data_path: Path = DATA_PATH, model_path: Path = MODEL_PATH) -> dict[st
 
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns"))
     with mlflow.start_run(run_name="forgepulse-extra-trees"):
-        mlflow.log_params({"model": "ExtraTrees", "n_estimators": 300, "test_size": 0.2, "seed": 42})
+        mlflow.log_params(
+            {"model": "ExtraTrees", "n_estimators": 300, "test_size": 0.2, "seed": 42}
+        )
         mlflow.log_metrics(metrics)
         mlflow.log_artifact(str(model_path))
         mlflow.log_artifact(str(model_path.with_suffix(".json")))

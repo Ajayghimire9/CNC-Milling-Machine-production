@@ -12,7 +12,9 @@ class TelemetryProducer:
 
     def __init__(self, topic: str = "cnc.telemetry") -> None:
         self.topic = topic
-        self.producer = Producer({"bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")})
+        self.producer = Producer(
+            {"bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")}
+        )
 
     def publish(self, event: dict[str, Any]) -> None:
         self.producer.produce(self.topic, json.dumps(event).encode("utf-8"))

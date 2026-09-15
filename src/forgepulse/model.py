@@ -22,11 +22,13 @@ class ManufacturingModels:
             random_state=42,
             n_jobs=-1,
         )
-        self.performance = Pipeline([("scale", StandardScaler()), ("model", MultiOutputRegressor(base))])
+        self.performance = Pipeline(
+            [("scale", StandardScaler()), ("model", MultiOutputRegressor(base))]
+        )
         self.anomaly = IsolationForest(n_estimators=200, contamination=0.05, random_state=42)
         self.version = "3.0.0"
 
-    def fit(self, frame: pd.DataFrame) -> "ManufacturingModels":
+    def fit(self, frame: pd.DataFrame) -> ManufacturingModels:
         x = build_features(frame)
         self.performance.fit(x, frame[TARGETS])
         self.anomaly.fit(x)
@@ -42,9 +44,10 @@ class ManufacturingModels:
         x = build_features(frame)
         prediction = pd.DataFrame(self.performance.predict(x), columns=TARGETS, index=x.index)
         uncertainty = pd.DataFrame(index=x.index)
+        scaled = self.performance.named_steps["scale"].transform(x)
         regressors = self.performance.named_steps["model"].estimators_
         for target, regressor in zip(TARGETS, regressors):
-            values = [tree.predict(x) for tree in regressor.estimators_]
+            values = [tree.predict(scaled) for tree in regressor.estimators_]
             uncertainty[f"{target}_std"] = pd.DataFrame(values).std(axis=0).to_numpy()
         score = pd.Series(self.anomaly.decision_function(x), index=x.index, name="anomaly_score")
         flag = pd.Series(self.anomaly.predict(x) == -1, index=x.index, name="anomaly")
@@ -56,5 +59,5 @@ class ManufacturingModels:
         joblib.dump(self, destination)
 
     @staticmethod
-    def load(path: str | Path) -> "ManufacturingModels":
+    def load(path: str | Path) -> ManufacturingModels:
         return joblib.load(path)

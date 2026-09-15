@@ -13,7 +13,11 @@ from .model import ManufacturingModels
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a ForgePulse artifact")
-    parser.add_argument("--data", type=Path, default=Path("CNC_Milling_Machine/Datasets/CNC-Milling Machine_Production data.xlsx"))
+    parser.add_argument(
+        "--data",
+        type=Path,
+        default=Path("CNC_Milling_Machine/Datasets/CNC-Milling Machine_Production data.xlsx"),
+    )
     parser.add_argument("--model", type=Path, default=Path("artifacts/forgepulse.joblib"))
     parser.add_argument("--output", type=Path, default=Path("artifacts/evaluation.json"))
     args = parser.parse_args()

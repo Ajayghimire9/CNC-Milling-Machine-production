@@ -40,7 +40,8 @@ def health() -> HealthResponse:
 
 @app.get("/ready")
 def ready() -> dict[str, bool]:
-    return {"ready": MODEL_PATH.exists()}
+    get_models()
+    return {"ready": True}
 
 
 @app.post("/v1/predict", response_model=PredictionResponse)

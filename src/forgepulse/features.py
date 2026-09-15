@@ -22,7 +22,8 @@ def validate_frame(frame: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing required features: {missing}")
     clean = frame.copy()
-    clean = clean.replace([np.inf, -np.inf], np.nan).dropna(subset=FEATURES)
+    if clean.empty or not np.isfinite(clean[FEATURES].to_numpy(dtype=float)).all():
+        raise ValueError("Manufacturing features must be nonempty and finite")
     if (clean[FEATURES] < 0).any().any():
         raise ValueError("Manufacturing features must be non-negative")
     return clean

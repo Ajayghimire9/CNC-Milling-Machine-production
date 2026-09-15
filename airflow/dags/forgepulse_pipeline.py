@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+
+from airflow.operators.bash import BashOperator
 
 from airflow import DAG
-from airflow.operators.bash import BashOperator
 
 with DAG(
     dag_id="forgepulse_training_pipeline",
-    start_date=datetime(2026, 1, 1),
+    start_date=datetime(2026, 1, 1, tzinfo=UTC),
     schedule="@daily",
     catchup=False,
     tags=["mlops", "manufacturing"],
