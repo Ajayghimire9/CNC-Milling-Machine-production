@@ -1,0 +1,17 @@
+groups:
+  - name: forgepulse
+    rules:
+      - alert: ForgePulseHighAnomalyRate
+        expr: rate(forgepulse_predictions_total[10m]) > 0 and rate(forgepulse_predictions_total{status="anomaly"}[10m]) > 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CNC anomaly rate is elevated"
+      - alert: ForgePulseHighLatency
+        expr: histogram_quantile(0.95, rate(forgepulse_prediction_latency_seconds_bucket[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ForgePulse p95 inference latency exceeds 500ms"
